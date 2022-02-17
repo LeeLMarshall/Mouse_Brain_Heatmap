@@ -1,0 +1,112 @@
+---
+title: "Nutil_Whole_Brain_Average"
+author: "Lee Marshall"
+date: "2020_12_21 - `r format(Sys.time(), '%Y_%m_%d')`"
+output:
+  word_document: default
+  html_document:
+    code_folding: show
+    self_contained: yes
+    toc_float: yes
+    theme: yeti
+---
+
+Nutil_Whole_Brain_Average  
+
+# Nutil_Whole_Brain_Average {.tabset .tabset-fade .tabset-pills}
+
+Nutil outputs folder  
+Calculate percentage area occupied by PS129 stain per brain region  
+Merge all brain sections and find avergae area per brain region  
+
+## Packages_Session
+  
+```{r Packages_Session}
+#---------- Knitr
+# setwd("/Volumes/projects_secondary/bras/Lee/Henderson")
+knitr::opts_chunk$set(warning=FALSE, message=FALSE, cache=FALSE, error=FALSE, cache.lazy=FALSE)
+
+#---------- Packages
+suppressPackageStartupMessages({
+  library(data.table)
+  library(dplyr)
+  library(ggplot2)
+  library(knitr)
+  library(readr)
+  library(reshape2)
+  library(viridis)
+})
+sessionInfo()
+```
+
+## Nutil
+
+```{r Nutil}
+#---------- Set Folder 
+file_path <- "./nutil_outputs"
+ids <- list.files(path = file_path)
+
+#---------- Whole_Brain_Average 
+for(i in seq(length(ids))){
+  id <- ids[i]
+  id_files <- list.files(path = paste(file_path,id,sep = "/"))
+  for(j in seq(length(id_files))){
+    if(j == 1){
+      id_sections <- read_delim(paste(file_path,id,id_files[j],sep="/"), 
+                                delim = "\t", 
+                                escape_double = FALSE, 
+                                trim_ws = TRUE) %>% 
+                       rename(Region_Name = `Region Name`) %>% 
+                       mutate(Object_Percentage = `Object area` / `Region area` * 100) %>% 
+                       select(Region_Name, 
+                              Object_Percentage)
+    } else {
+      id_sections <- rbind(id_sections,
+                           read_delim(paste(file_path,id,id_files[j],sep="/"), 
+                                      delim = "\t", 
+                                      escape_double = FALSE, 
+                                      trim_ws = TRUE) %>% 
+                             rename(Region_Name = `Region Name`) %>% 
+                             mutate(Object_Percentage = `Object area` / `Region area` * 100) %>% 
+                             select(Region_Name, 
+                                    Object_Percentage))
+    }
+  }
+  if(i == 1){
+    id_regions <- id_sections %>% 
+      group_by(Region_Name) %>% 
+      summarize(Object_Percentage_Mean = mean(Object_Percentage, na.rm = TRUE))
+    names(id_regions)[2] <- paste(id,"Object_Percentage_Mean", sep = "_")
+  } else {
+    id_regions1 <- id_sections %>% 
+      group_by(Region_Name) %>% 
+      summarize(Object_Percentage_Mean = mean(Object_Percentage, na.rm = TRUE))
+    names(id_regions1)[2] <- paste(id,"Object_Percentage_Mean", sep = "_")
+    id_regions <- merge(x = id_regions, y = id_regions1, by = "Region_Name", all = TRUE)
+    rm(id_regions1)
+  }
+}
+
+
+#---------- Plot 
+# id_regions %>% ggplot(aes(x=Region_Name,y=Object_Percentage_Mean_sample)) +
+#   geom_point() +
+#   geom_smooth(method=lm) + 
+#   ggtitle("Whole Brain Average") + 
+#   theme_classic() + 
+#   theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1)) + 
+#   theme(plot.title = element_text(hjust=0.5, face="bold"))
+
+#---------- Data
+id_regions %>% DT::datatable()
+
+#---------- Write
+write_csv(id_regions, 
+          file = "id_regions.csv", 
+          na = "NA", 
+          append = FALSE,
+          col_names = TRUE)
+```
+
+
+
