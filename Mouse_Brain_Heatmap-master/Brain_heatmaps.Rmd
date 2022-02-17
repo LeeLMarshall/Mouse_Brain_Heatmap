@@ -1,0 +1,276 @@
+---
+title: "Synuclein Propogation"
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+output:
+  html_document:
+    self_contained: yes
+    toc: yes
+
+---
+  
+```{r libs-funcs,echo=FALSE,include=FALSE}
+setwd("/Users/lee.marshall/Desktop/MBA/Mouse_Brain_Heatmap-master")
+set.seed(42)
+options(java.parameters = "-Xmx100000m")
+library(foreign)
+library(ggplot2)
+library(gtools)
+library(grid)
+#library(car)
+library(knitr)
+#library(rms)
+library(reshape2)
+#library(lme4)
+#library(lsmeans)
+#library(pheatmap)
+#library(jpeg)
+library(grImport)
+library(akima)
+
+
+ knitr::opts_chunk$set(echo=FALSE, fig.align='center', warning=FALSE, message=FALSE, dev=c('png','cairo_pdf'), cache=FALSE,error=FALSE,fig.width=10,fig.height=12)
+
+
+ theme_opt = theme_classic(11) + theme(axis.text=element_text(size=11,family="Arial",color="black"),plot.title=element_text(size=11,family="Arial",color="black"),axis.title=element_text(size=11,family="Arial",color="black"),strip.text=element_text(size=11,family="Arial",color="black"),axis.text.x=element_text(size=11,family="Arial",angle=60,hjust=1,color="black"))  
+ 
+```
+
+
+##    Brain Heatmap {.tabset}
+The following abbreviated regions can be modified (ofcourse more could be added):
+
+ "IP"    "FRP"   "MO"    "SS"    "VIS"   "ORB"   "RSP"   "PTLp"  "AOB"   "AON"   "MOB"   "PIR3"  "CA1"   "CA2"   "CA3"  
+ "DG"    "SUB"   "CLA"   "EPD"   "CP"    "ACB"   "ISL"   "OT"    "SI"    "NDB"   "BST"   "PIN"   "VAL"   "VM"    "VPM"  
+"SPFp"  "LP"    "PO"    "AV"    "AD"    "LD"    "PF"    "RT"    "LM"    "LHA"   "LPO"   "ZI"    "SCs"   "IC"    "MEV"  
+ "SNr"   "VTA"   "RR"    "MRN"   "SCm"   "PAG"   "APN"   "NOT"   "PPT"   "RN"    "PB"    "SOC"   "PG"    "PRNc"  "LC"   
+"PRNr"  "CU"    "NTS"   "SPVC"  "VII"   "IRN"   "LRN"   "MDRN"  "PARN"  "PGRNI" "MV"    "SPIV"  "CBX"   "FN" 
+
+
+```{r ,out.extra='angle=90'}
+
+#Region abbreviations
+regions=c("AOV","AON","AOB","MOB","FRP","ORB","MO","CP","ACB","RSP",
+          "VIS","HPF","CA1","CA2","CA3","DG","LHA","SNr","VTA","AV",
+          "VAL","VM","PF","PO","LP","LD","SPFp","VPM","RT","PRNr",
+          "PRNc","MDRN", "LRN", "PGRNI", "PARN","SPVC","PAG","MRN","CU","LPO",
+          "SS","CBX") 
+#Scores that match the above regions 
+DSS.m = rep(x = c(0,0.1,0,0.4,0.1,0.3,0.4,1.4,2,0.1,1.3,1.6,0.1,0.2,0.1), 
+            times = c(6,3,2,6,1,1,10,2,4,1,1,1,1,1,2))
+#Create an attributes data frame
+attr.d = data.frame(regions,DSS.m)
+
+#First set of colors and color mappings
+colors = colorRampPalette(c("white","blue","green","yellow","orange","red"))(41)
+color.df= data.frame(value = as.numeric(seq(0,40,1)/10),colors)
+ix = match(attr.d$DSS.m,color.df$value)
+attr.d$color = color.df$color[ix]
+attr.d$r = col2rgb(attr.d$color)[1,]
+attr.d$g = col2rgb(attr.d$color)[2,]
+attr.d$b = col2rgb(attr.d$color)[3,]
+
+c.m = c()
+
+#Converts the postscript file into an RGML (an XML document)
+library(grImport)
+img = PostScriptTrace("100883867.ps",
+                      "100883867.ps.xml")
+
+#Parses the xml file into an R object
+x = xmlParse("/home/user/100883867.ps.xml")
+
+#region mappings manually curated from the R object, these will likely need to be double checked as the SVGs may have been updated since we ran this code and thus the mapping numbers could have moved. This can be arduous, one can use for example, grid.picture(gi[c(1,3)]) to see which brain region each xml layer maps to one-by-one.
+region.map = list(
+IP=3,
+FRP=c(9,11),
+MO = c(5,13,15,17 ,19),
+SS = c(21,23,25,27,29,31),
+VIS = c(33,35,37,39,41,43),
+ORB = c(45,47,49,51,53),
+RSP = c(55,57,59,61,63,65),
+PTLp = c(67,69,71,73,75,77),
+AOB = c(79,81),
+AON = c(83),
+MOB = 81,
+PIR3 = 85,
+CA1 = c(87,89,91,93),
+CA2 = c(95,97,99,101),
+CA3 = c(103,105,107,109),
+DG = c(111,113,115),
+SUB = 117,
+CLA=119,
+EPD = 121,
+CP=123,
+ACB=125,
+ISL=127,
+OT=c(129,131,133),
+SI = 135,
+NDB = 137,
+BST=139,
+PIN=c(141,167),
+VAL=143,
+VM = 145,
+VPM= c(147,149)  ,
+SPFp = 151,
+LP = 153,
+PO = 155,
+AV=157,
+AD=159,
+LD=161,
+PF=163,
+RT=165,
+LM = 169,
+LHA=171,
+LPO = 173,
+ZI=175,
+SCs = 177,
+IC=179,
+MEV = 181,
+SNr=183,
+VTA = 185,
+RR=187,
+MRN=189,
+SCm = 191,
+PAG = 193,
+APN = 195,
+NOT=197,
+PPT=199,
+RN=201,
+PB=203,
+SOC=205,
+PG=207,
+PRNc= 209,
+LC=211,
+PRNr = 213,
+CU=215,
+NTS=217,
+SPVC = 219,
+VII = 221,
+IRN = 223,
+LRN= 225,
+MDRN = 227,
+PARN = 229,
+PGRNI = 231,
+MV=233,
+SPIV = 235,
+CBX = c(237,239,241,243,245,247,249,251,253,255,257,259,261,263,265,267),
+FN = 269
+)
+
+#Setting layer attributes based on attribute file
+for(j in 1:length(region.map)){
+  for(i in region.map[[j]]  ){
+    node = getNodeSet(x, "//path//rgb")[[i]]
+    if(names(region.map)[j] %in% regions){
+      temp = attr.d[attr.d$regions == names(region.map)[j],]
+      xmlAttrs(node) <- c(r=temp$r/255,g=temp$g/255,b=temp$b/255)
+    } else {
+      xmlAttrs(node) <- c(r=100/255,g=100/255,b=100/255)
+    }
+  }
+}
+
+#Save the modified XML
+saveXML(x,"/home/user/brain.ps.xml")
+
+#Read in the modified XML
+gi =  readPicture("/home/user/brain.ps.xml")
+
+
+#Function to get each path from xml for plotting
+get.paths = function(i){
+ return(data.frame(x=gi[i]@paths$path@x,y=gi[i]@paths$path@y,label =i  ))
+}
+
+#Apply the get.paths function across all region mappings to create a data.frame
+paths.d = do.call("rbind",lapply(unlist(region.map), function(x) get.paths(x)))
+
+#Creates a df of the paths that were missing from the region mappings but were in the xml file
+all.path = 1:gi@summary@numPaths
+paths.d.2 = do.call("rbind",lapply(all.path[!all.path %in% unlist(region.map)], function(x) get.paths(x)))
+
+#estimate the center of mass for each region
+agg.d=NULL
+for(i in unique(paths.d$label)) {
+    agg.d = rbind(agg.d,data.frame(label=i,x=mean(paths.d$x[paths.d$label==i]),y=mean(paths.d$y[paths.d$label==i])))
+}
+
+#create a data frame with paths and. value = score
+vals= NULL
+for(i in names(region.map)){
+  if(! i %in% attr.d$regions){ 
+    value = NA
+  } else {
+    temp = attr.d[attr.d$regions == i,]
+    value = temp$DSS.m
+  }
+  vals = rbind(vals,data.frame(label = region.map[[which(names(region.map) == i)]],value = rep(value)))
+}
+
+#merge the vals dataframe with the aggregate or center of mass estimate
+vals = merge(agg.d,vals,by="label",keep="all")
+
+#data frame of regions with missing scores
+vals.miss = vals[is.na(vals$value),]
+vals=na.omit(vals)
+
+#Can impute the missing data with an estimate based off something like AKIMA, or make them all zeroes, or keep them NA to be greyed out, or any other imputatoin that makes sense. 
+vals.miss$value = interpp(vals$x, vals$y,vals$value,vals.miss$x,vals.miss$y,duplicate="strip",extrap=T,linear=F)$z
+# vals.miss$value = 0
+# vals.miss$value = NA
+
+#merge the imputed values with the scored values
+agg.d=rbind(vals,vals.miss)
+
+#intialize a ggplot 
+p = ggplot(data=NULL) 
+
+#grey out all regions with missing data
+for(i in unique(paths.d.2$label)) {
+    temp = paths.d.2[paths.d.2$label==i,]
+    p = p+geom_polygon(data = temp,aes(x=y,y=-x),color="grey",fill="grey95")
+}
+
+#color the non-missing data regions based on their score
+for(i in unique(paths.d$label)) {
+    temp = paths.d[paths.d$label==i,]
+    temp$col = agg.d$value[agg.d$label==i]
+    p = p+geom_polygon(data = temp,aes(x=y,y=-x,fill=col),color="grey")
+}
+
+
+#set the color gradients, breaks, theme, and fine tune some of the plot features.
+p + scale_fill_gradientn(colours=c("grey99","darkred"),breaks=seq(0,3,0.5),limits=c(0,3)) + theme_classic()+ coord_fixed() + theme(axis.line=element_blank(),
+      axis.text.x=element_blank(),
+      axis.text.y=element_blank(),
+      axis.ticks=element_blank(),
+      axis.title.x=element_blank(),
+      axis.title.y=element_blank(),
+      panel.background=element_blank(),
+      panel.border=element_blank(),
+      panel.grid.major=element_blank(),
+      panel.grid.minor=element_blank(),
+      plot.background=element_blank())
+
+#save as pdf or png. Tiffs and jpegs are also possible
+ggsave("/mnt/BBCSecondary/research/BRUP_20180223_Syn_propogation/Brain_Heatmap_Red_Control.pdf", width = 215, height = 95, units = "mm")
+ggsave("/mnt/BBCSecondary/research/BRUP_20180223_Syn_propogation/Brain_Heatmap_Red_Control.png", width = 215, height = 95, units = "mm",dpi=500)
+```
+
+
+
+```{r}
+library(grImport2)
+PostScriptTrace("shapes.eps")
+
+
+
+
+
+```
+
+
+
+
+
+
